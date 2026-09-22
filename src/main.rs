@@ -6,6 +6,7 @@ mod rom;
 
 use std::env;
 use std::process::ExitCode;
+use std::thread;
 
 use hack_computer::HackComputer;
 
@@ -28,9 +29,18 @@ fn main() -> ExitCode {
         }
     };
 
-    if let Err(err) = hack_computer.run() {
-        eprintln!("execution halted with error: {}", err);
-        return ExitCode::from(1);
+    let hack_runner = thread::spawn(move || hack_computer.run());
+
+    match hack_runner.join() {
+        Ok(Ok(())) => println!("done"),
+        Ok(Err(e)) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(1);
+        }
+        Err(_) => {
+            eprintln!("error: emulator thread panicked");
+            return ExitCode::from(1);
+        }
     }
 
     ExitCode::SUCCESS
