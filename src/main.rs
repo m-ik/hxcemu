@@ -1,47 +1,129 @@
 mod alu;
+mod app;
+mod common;
 mod cpu;
 mod hack_computer;
 mod ram;
 mod rom;
+mod tui;
 
-use std::env;
-use std::process::ExitCode;
-use std::thread;
+use std::{
+    process::ExitCode,
+    sync::{
+        mpsc::{self, Receiver, RecvTimeoutError},
+        Arc, Mutex,
+    },
+    thread,
+    time::Duration,
+};
 
-use hack_computer::HackComputer;
+use clap::Parser;
+
+use crate::{common::Command, hack_computer::HackComputer, tui::Tui};
+
+#[derive(Parser)]
+#[command(about = "hack computer emulator")]
+struct Args {
+    program: String,
+
+    #[arg(short, long, default_value_t = 10)]
+    tick_ms: u64,
+}
 
 fn main() -> ExitCode {
-    println!("hack emulator");
+    let args = Args::parse();
 
-    let args: Vec<String> = env::args().collect();
-    if args.len() == 1 {
-        eprintln!("Usage: {} <file>", args[0]);
-        return ExitCode::from(1);
-    }
-
-    let file_path = &args[1];
-
-    let mut hack_computer = match HackComputer::new(file_path) {
+    let hack_computer = match HackComputer::new(args.program) {
         Ok(hack_computer) => hack_computer,
         Err(err) => {
             eprintln!("error: failed to initialise the computer: {}", err);
-            return ExitCode::from(1);
+            return ExitCode::FAILURE;
         }
     };
 
-    let hack_runner = thread::spawn(move || hack_computer.run());
+    let hack_computer = Arc::new(Mutex::new(hack_computer));
+    let (tx, rx) = mpsc::channel::<Command>();
 
-    match hack_runner.join() {
-        Ok(Ok(())) => println!("done"),
-        Ok(Err(e)) => {
-            eprintln!("error: {e}");
-            return ExitCode::from(1);
+    let hack_computer_clone = Arc::clone(&hack_computer);
+    let tick_interval = Duration::from_millis(args.tick_ms);
+    let emulator_handle = thread::spawn(move || {
+        emulator_thread(hack_computer_clone, rx, tick_interval);
+    });
+
+    let mut tui = match Tui::new() {
+        Ok(tui) => tui,
+        Err(e) => {
+            eprintln!("error: failed to initialise the TUI: {}", e);
+            return ExitCode::FAILURE;
         }
-        Err(_) => {
-            eprintln!("error: emulator thread panicked");
-            return ExitCode::from(1);
+    };
+    match tui.enter() {
+        Ok(()) => {}
+        Err(e) => {
+            eprintln!("error: failed to enter TUI: {}", e);
+            return ExitCode::FAILURE;
         }
     }
+    let res = tui.run(&hack_computer, &tx);
+    match tui.exit() {
+        Ok(()) => {}
+        Err(e) => {
+            eprintln!("error: failed to exit TUI: {}", e);
+            return ExitCode::FAILURE;
+        }
+    }
+    let _ = tx.send(Command::Quit);
 
-    ExitCode::SUCCESS
+    emulator_handle.join().unwrap();
+
+    match res {
+        Ok(()) => return ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    }
+}
+
+fn emulator_thread(
+    computer: Arc<Mutex<HackComputer>>,
+    rx: Receiver<Command>,
+    tick_interval: Duration,
+) {
+    let mut running = false;
+
+    loop {
+        if running {
+            match rx.recv_timeout(tick_interval) {
+                Ok(Command::Run) => {}
+                Ok(Command::Step) => {
+                    if let Err(e) = computer.lock().unwrap().tick(false) {
+                        eprintln!("error: {e}");
+                        running = false;
+                    }
+                }
+                Ok(Command::Quit) => break,
+                Err(RecvTimeoutError::Timeout) => {
+                    if let Err(e) = computer.lock().unwrap().tick(false) {
+                        eprintln!("error: {e}");
+                        running = false;
+                    }
+                }
+                Err(RecvTimeoutError::Disconnected) => break,
+            }
+        } else {
+            // idle: block until a command arrives, no ticking at all
+            match rx.recv() {
+                Ok(Command::Run) => running = true,
+                Ok(Command::Step) => {
+                    if let Err(e) = computer.lock().unwrap().tick(false) {
+                        eprintln!("error: {e}");
+                        running = false;
+                    }
+                }
+                Ok(Command::Quit) => break,
+                Err(_) => break, // sender dropped
+            }
+        }
+    }
 }
