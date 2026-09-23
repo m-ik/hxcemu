@@ -10,12 +10,18 @@ programs written in the Hack assembly language.
 
 ```bash
 cargo build
+# or
+cargo build --release
 ```
 
 ## usage
 
 ```bash
-./target/debug/hxcemu <file>
+cargo run <.hack file>
+# or
+./target/debug/hxcemu <.hack file>
+# or
+./target/release/hxcemu <.hack file>
 ```
 
 ## tests
