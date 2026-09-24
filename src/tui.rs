@@ -165,24 +165,10 @@ fn render_memory(app: &mut App, frame: &mut Frame, area: Rect) {
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .areas(area);
 
-    render_memory_table(
-        frame,
-        left_area,
-        "RAM",
-        "Hex",
-        |addr| {
-            let v = app.hack_computer.ram(addr);
-            format!("{:04x}", v)
-        },
-        app.a_reg,
-        left_area.height.saturating_sub(3),
-        Some(app.a_reg),
-    );
-
     let [filename_area, rom_area] = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(3), Constraint::Min(0)])
-        .areas(right_area);
+        .areas(left_area);
 
     render_filename(app, frame, filename_area);
 
@@ -195,6 +181,20 @@ fn render_memory(app: &mut App, frame: &mut Frame, area: Rect) {
         app.pc,
         rom_area.height.saturating_sub(3),
         Some(app.pc),
+    );
+
+    render_memory_table(
+        frame,
+        right_area,
+        "RAM",
+        "Hex",
+        |addr| {
+            let v = app.hack_computer.ram(addr);
+            format!("{:04x}", v)
+        },
+        app.a_reg,
+        right_area.height.saturating_sub(3),
+        Some(app.a_reg),
     );
 }
 
