@@ -10,6 +10,7 @@ pub struct HackComputer {
     rom: Rom,
     ram: Ram,
     cpu: Cpu,
+    program_path: String,
 }
 
 #[derive(Debug)]
@@ -29,6 +30,8 @@ impl fmt::Display for HackComputerError {
 
 impl HackComputer {
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, std::io::Error> {
+        let path: &Path = path.as_ref();
+
         let mut rom = Rom::new();
         rom.load_program_from_file(path)?;
 
@@ -36,6 +39,7 @@ impl HackComputer {
             rom,
             ram: Ram::new(),
             cpu: Cpu::new(),
+            program_path: path.display().to_string(),
         })
     }
 
@@ -74,5 +78,9 @@ impl HackComputer {
 
     pub fn rom(&self, addr: u16) -> u16 {
         self.rom.fetch(addr)
+    }
+
+    pub fn program_path(&self) -> &str {
+        &self.program_path
     }
 }

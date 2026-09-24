@@ -160,16 +160,14 @@ fn render_registers(app: &mut App, frame: &mut Frame, area: Rect) {
 }
 
 fn render_memory(app: &mut App, frame: &mut Frame, area: Rect) {
-    let chunks = Layout::default()
+    let [left_area, right_area] = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(area);
-
-    let visible_rows = area.height.saturating_sub(3);
+        .areas(area);
 
     render_memory_table(
         frame,
-        chunks[0],
+        left_area,
         "RAM",
         "Hex",
         |addr| {
@@ -177,17 +175,25 @@ fn render_memory(app: &mut App, frame: &mut Frame, area: Rect) {
             format!("{:04x}", v)
         },
         app.a_reg,
-        visible_rows,
+        left_area.height.saturating_sub(3),
         Some(app.a_reg),
     );
+
+    let [filename_area, rom_area] = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(0)])
+        .areas(right_area);
+
+    render_filename(app, frame, filename_area);
+
     render_memory_table(
         frame,
-        chunks[1],
+        rom_area,
         "ROM",
         "Bin",
         |addr| format!("{:016b}", app.hack_computer.rom(addr)),
         app.pc,
-        visible_rows,
+        rom_area.height.saturating_sub(3),
         Some(app.pc),
     );
 }
@@ -222,6 +228,14 @@ fn render_memory_table<F: Fn(u16) -> String>(
         )
         .block(Block::default().title(title).borders(Borders::ALL));
     frame.render_widget(table, area);
+}
+
+fn render_filename(app: &mut App, frame: &mut Frame, area: Rect) {
+    frame.render_widget(
+        Paragraph::new(format!("{}", app.program_path))
+            .block(Block::default().title("Program").borders(Borders::ALL)),
+        area,
+    );
 }
 
 fn render_instructions(frame: &mut Frame, area: Rect) {
