@@ -20,7 +20,7 @@ use ratatui::{
     Frame, Terminal,
 };
 
-use crate::{app::App, common::Command, hack_computer::HackComputer};
+use crate::{app::App, common::Command, disas::disassemble, hack_computer::HackComputer};
 
 pub struct Tui {
     terminal: Terminal<CrosstermBackend<io::Stderr>>,
@@ -176,8 +176,15 @@ fn render_memory(app: &mut App, frame: &mut Frame, area: Rect) {
         frame,
         rom_area,
         "ROM",
-        "Bin",
-        |addr| format!("{:016b}", app.hack_computer.rom(addr)),
+        &["Bin", "Disassembly"],
+        &[Constraint::Length(16), Constraint::Length(16)],
+        |addr| {
+            let instr = app.hack_computer.rom(addr);
+            vec![
+                format!("{instr:016b}"),
+                disassemble(instr).expect("invalid instruction"),
+            ]
+        },
         app.pc,
         rom_area.height.saturating_sub(3),
         Some(app.pc),
@@ -187,10 +194,11 @@ fn render_memory(app: &mut App, frame: &mut Frame, area: Rect) {
         frame,
         right_area,
         "RAM",
-        "Hex",
+        &["Hex"],
+        &[Constraint::Length(4)],
         |addr| {
             let v = app.hack_computer.ram(addr);
-            format!("{:04x}", v)
+            vec![format!("{:04x}", v)]
         },
         app.a_reg,
         right_area.height.saturating_sub(3),
@@ -198,12 +206,13 @@ fn render_memory(app: &mut App, frame: &mut Frame, area: Rect) {
     );
 }
 
-fn render_memory_table<F: Fn(u16) -> String>(
+fn render_memory_table<F: Fn(u16) -> Vec<String>>(
     frame: &mut Frame,
     area: Rect,
     title: &str,
-    value_column_title: &str,
-    format_value: F,
+    headers: &[&str],
+    widths: &[Constraint],
+    read_row: F,
     center: u16,
     visible_rows: u16,
     highlight: Option<u16>,
@@ -218,14 +227,18 @@ fn render_memory_table<F: Fn(u16) -> String>(
             } else {
                 Style::default()
             };
-            Row::new(vec![format!("{addr:06x}"), format_value(addr)]).style(style)
+            let mut cells = vec![format!("{addr:06x}")];
+            cells.extend(read_row(addr));
+            Row::new(cells).style(style)
         })
         .collect();
 
-    let table = Table::new(rows, [Constraint::Length(7), Constraint::Length(16)])
-        .header(
-            Row::new(vec!["Address", value_column_title]).style(Style::default().add_modifier(Modifier::BOLD)),
-        )
+    let mut all_widths = vec![Constraint::Length(7)];
+    all_widths.extend_from_slice(widths);
+    let mut all_headers = vec!["Address"];
+    all_headers.extend_from_slice(headers);
+    let table = Table::new(rows, all_widths)
+        .header(Row::new(all_headers).style(Style::default().add_modifier(Modifier::BOLD)))
         .block(Block::default().title(title).borders(Borders::ALL));
     frame.render_widget(table, area);
 }

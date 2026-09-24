@@ -6,6 +6,7 @@ mod hack_computer;
 mod ram;
 mod rom;
 mod tui;
+mod disas;
 
 use std::{
     process::ExitCode,
