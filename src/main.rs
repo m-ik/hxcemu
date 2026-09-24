@@ -2,11 +2,12 @@ mod alu;
 mod app;
 mod common;
 mod cpu;
+mod disas;
 mod hack_computer;
+mod isa;
 mod ram;
 mod rom;
 mod tui;
-mod disas;
 
 use std::{
     process::ExitCode,

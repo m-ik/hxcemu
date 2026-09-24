@@ -1,19 +1,11 @@
-use crate::alu::Alu;
+use crate::{alu::Alu, isa};
 
-const OPCODE_BIT: u16 = 0x8000;
-const A_BIT: u16 = 0x1000;
 const ZX_BIT: u16 = 0x0800;
 const NX_BIT: u16 = 0x0400;
 const ZY_BIT: u16 = 0x0200;
 const NY_BIT: u16 = 0x0100;
 const F_BIT: u16 = 0x0080;
 const NO_BIT: u16 = 0x0040;
-const DST_SHIFT: u16 = 3;
-const DST_MASK: u16 = 0x07;
-const DST_M: u16 = 0x01;
-const DST_D: u16 = 0x02;
-const DST_A: u16 = 0x04;
-const JMP_MASK: u16 = 0x07;
 
 pub struct Cpu {
     a_reg: u16,
@@ -52,14 +44,14 @@ impl Cpu {
             return (out_m, write_m, addr_m);
         }
 
-        if (instr & OPCODE_BIT) == 0 {
+        if (instr & isa::INSTRUCTION_TYPE_BIT) == 0 {
             self.a_reg = instr;
             self.pc += 1;
             return (out_m, write_m, addr_m);
         }
 
         let x = self.d_reg;
-        let y = if (instr & A_BIT) == 0 {
+        let y = if (instr & isa::A_BIT) == 0 {
             self.a_reg
         } else {
             in_m
@@ -75,20 +67,20 @@ impl Cpu {
 
         out_m = out;
 
-        let dst = (instr >> DST_SHIFT) & DST_MASK;
+        let dst = (instr >> isa::DST_SHIFT) & isa::DST_MASK;
 
-        if (dst & DST_M) != 0 {
+        if (dst & isa::DST_M) != 0 {
             write_m = true;
             addr_m = self.a_reg;
         }
-        if (dst & DST_D) != 0 {
+        if (dst & isa::DST_D) != 0 {
             self.d_reg = out;
         }
-        if (dst & DST_A) != 0 {
+        if (dst & isa::DST_A) != 0 {
             self.a_reg = out;
         }
 
-        let jmp = instr & JMP_MASK;
+        let jmp = instr & isa::JMP_MASK;
 
         let do_jmp = match jmp {
             1 => !ng && !zr,
@@ -146,7 +138,7 @@ mod tests {
             input: { instr: 0b111_1_000010_011_001, in_m: 0x12, reset: false },
             expect: { a: 0x42, d: 0x1312, pc: 0x42, out_m: 0x1312, write_m: true, addr_m: 0x42 }
         },
-        // M=D-A;JGE 
+        // M=D-A;JGE
         cinstr_d_minus_a_jge_no_branch: {
             state: { a: 0x13, d: 0x12, pc: 0 },
             input: { instr: 0b111_0_010011_001_011, in_m: 0, reset: false },
