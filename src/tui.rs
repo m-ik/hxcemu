@@ -222,20 +222,22 @@ fn render_memory_table<F: Fn(u16) -> Vec<String>>(
     let rows: Vec<Row> = (0..visible_rows)
         .map(|i| {
             let addr = start + i;
-            let style = if Some(addr) == highlight {
-                Style::default().fg(Color::White).bg(Color::Black)
+            let is_highlight = Some(addr) == highlight;
+            let hl_sym = if is_highlight { ">" } else { "" };
+            let style = if is_highlight {
+                Style::default().fg(Color::White)
             } else {
                 Style::default()
             };
-            let mut cells = vec![format!("{addr:06x}")];
+            let mut cells = vec![hl_sym.to_string(), format!("{addr:06x}")];
             cells.extend(read_row(addr));
             Row::new(cells).style(style)
         })
         .collect();
 
-    let mut all_widths = vec![Constraint::Length(7)];
+    let mut all_widths = vec![Constraint::Length(1), Constraint::Length(7)];
     all_widths.extend_from_slice(widths);
-    let mut all_headers = vec!["Address"];
+    let mut all_headers = vec!["", "Address"];
     all_headers.extend_from_slice(headers);
     let table = Table::new(rows, all_widths)
         .header(Row::new(all_headers).style(Style::default().add_modifier(Modifier::BOLD)))
